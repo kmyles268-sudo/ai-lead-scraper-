@@ -1,29 +1,16 @@
-# Use Playwright base image with Chromium pre-installed
 FROM mcr.microsoft.com/playwright:v1.45.0-jammy
 
-# Set working directory
 WORKDIR /app
 
-# Copy package files first for better caching
 COPY package.json ./
 
-# Install dependencies (express + playwright)
 RUN npm install --omit=dev --no-audit --no-fund
 
-# Copy application code
-COPY server.js ./
-COPY public ./public
+RUN npx playwright install chromium
 
-# Expose the port
+COPY server.js ./
+
 ENV PORT=3000
 EXPOSE 3000
 
-# Add a non-root user for security (optional, Playwright image already runs as root by default)
-# USER node
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3000/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
-
-# Start the application
 CMD ["node", "server.js"]
