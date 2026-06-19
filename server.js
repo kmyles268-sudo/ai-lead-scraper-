@@ -217,6 +217,31 @@ function findContactPages(baseUrl, links) {
   return [...found].slice(0, 2);
 }
 
+function detectBotProtection(pageData) {
+  const text = (pageData.content || '').toLowerCase();
+  const title = (pageData.title || '').toLowerCase();
+  const combined = text.slice(0, 2000) + ' ' + title;
+
+  const signals = [
+    { name: 'Vercel', patterns: ['vercel security checkpoint', 'you have been blocked', 'attention required'] },
+    { name: 'Cloudflare', patterns: ['checking your browser', 'cloudflare', 'cf-browser-verification', 'ray id'] },
+    { name: 'Akamai', patterns: ['akamai', 'reference #'] },
+    { name: 'PerimeterX/HUMAN', patterns: ['perimeterx', 'human challenge', 'are you a human'] },
+    { name: 'DataDome', patterns: ['datadome'] },
+    { name: 'generic bot detection', patterns: ['captcha', 'verify you are human', 'unusual traffic', 'access denied', 'bot detection'] },
+  ];
+
+  for (const signal of signals) {
+    for (const pattern of signal.patterns) {
+      if (combined.includes(pattern)) return signal.name;
+    }
+  }
+
+  if (text.length < 50 && title.includes('error')) return 'generic bot/security';
+
+  return null;
+}
+
 async function scrapeCompany(targetUrl, providedCompanyName = null) {
   let urlObj;
   try { urlObj = new URL(targetUrl); } catch (e) { throw new Error('Invalid URL'); }
@@ -227,6 +252,11 @@ async function scrapeCompany(targetUrl, providedCompanyName = null) {
   const browser = await getBrowser();
   const mainPage = await scrapePage(browser, targetUrl);
   if (!mainPage) throw new Error('Could not load the page (timeout or unreachable)');
+
+  const botCheck = detectBotProtection(mainPage);
+  if (botCheck) {
+    throw new Error(`This site appears to be protected by ${botCheck} bot detection, which blocks automated browsers. Try a different site or contact the site owner for API access.`);
+  }
 
   const contactUrls = findContactPages(targetUrl, mainPage.links);
   const additionalData = [];
